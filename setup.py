@@ -7,7 +7,7 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'lucs_tools'
-DESCRIPTION = "all the stuff I was sick of rewriting"
+DESCRIPTION = 'all the stuff I was sick of rewriting'
 VERSION = '0.0.1'
 AUTHOR = 'Luc Le Pottier'
 EMAIL = 'luc.lepottier@cern.ch'
@@ -19,7 +19,7 @@ REQUIRED = [
     "argparse",
 ]
 
-package_data={'': ['mm_scripting_util/data/*']}
+package_data={'': []}
 include_package_data=True
 
 # What packages are optional?
