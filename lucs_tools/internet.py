@@ -1,11 +1,68 @@
-from lucs_tools.util.internet import *
-from lucs_tools.util.internet import _base_util
+import selenium.webdriver
+import os
+from platform import system as platform_system
+from glob import glob as glob_glob
+from time import time as time_time
+import json 
+import logging
+from lucs_tools.logs import get_logger, set_loglevel
 
-class internet_util(_base_util):
+class exceptions:
+    class NoMatchingWebDriver(Exception):
+        code = 1
+    class MultipleMatchingWebDrivers(Exception):
+        code = 2
+
+def select_default(
+    search_criteria,
+    search_path,
+    ignore_duplicates=False
+):
+    matching_webdrivers = glob_glob('{}/{}'.format(search_path, search_criteria))
+    
+    if len(matching_webdrivers) == 0:
+        raise exceptions.NoMatchingWebDriver
+    elif len(matching_webdrivers) > 1 and not ignore_duplicates:
+        raise exceptions.MultipleMatchingWebDrivers    
+    return matching_webdrivers[0]
+
+def grab_json(
+    name,
+    path='',
+):
+    if path=='' or path=='pwd':
+        datafile_path = '{}.json'.format(name)
+    else:
+        datafile_path = '{}/{}.json'.format(path, name)
+    if os.path.exists(datafile_path):
+        with open(datafile_path, 'r') as f:
+            return json.load(f)
+    return {}
+
+def dump_json(
+    data,
+    name,
+    path='',
+):
+    if path=='' or path=='pwd':
+        datafile_path = '{}.json'.format(name)
+    else:
+        datafile_path = '{}/{}.json'.format(path, name)
+    with open(datafile_path, 'w+') as f:
+        json.dump(data, f)
+
+class internet_base_util:
+
+    SUBMODULE_NAME = __file__.replace('.py', '').split('/')[-1].split('\\')[-1]
+    SUBMODULE_DATA_PATH = '{}/data/{}'.format(os.path.dirname(os.path.abspath(__file__)), SUBMODULE_NAME)
+    PLATFORM = platform_system().lower()
+
     def __init__(
         self,
         driver_path=None,
-        options=None
+        data_path=None,
+        options=None,
+        loglevel=20,
     ):
         self.driver_path = self.check_and_get_driver_path(driver_path)
         if options is not None:
@@ -21,39 +78,78 @@ class internet_util(_base_util):
                 executable_path=self.driver_path
             )
 
+        self.DATA_PATH = self.SUBMODULE_DATA_PATH if data_path is None else data_path
 
-    def open_link(
-        self,
-        link
-    ):
-        self.driver.get(link)
-        self.current_link = link
+        self.metrics = {}
+        self.known_cookies = {}
+
+        self.log = get_logger(__name__)
+        set_loglevel(loglevel, __name__) 
+
+    ### DRIVER HANDLING
 
     def check_and_get_driver_path(
         self,
         driver_path
     ):
         if driver_path is None or not os.path.exists(driver_path):
-            driver_path = self._select_default(
+            driver_path = select_default(
                 '*{}*'.format(self.PLATFORM),
                 '{}/default_webdrivers'.format(self.SUBMODULE_DATA_PATH)
             )
         return driver_path
 
-    def get_elements_with_param_matching_spec(
+    ### METRICS
+    
+    def add_metric(
         self,
-        param,
-        spec
+        param, 
+        spec,
+        name,
+        function,
     ):
-        return self.driver.find_elements_by_xpath("//a[contains({}, '{}')]".format(param, spec))
-        
-    def get_element_with_param_matching_spec(
-        self,
-        param,
-        spec
-    ):
-        return self.driver.find_element_by_xpath("//a[contains({}, '{}')]".format(param, spec))
+        self.metrics[name] = tuple((param, spec, name, function))
 
+    def get_data_from_named_metric(
+        self,
+        named_metric,
+    ):
+        param, spec, name, function = self.metrics[named_metric]
+        return self.get_data_from_metric(
+            param, 
+            spec, 
+            function
+        )
+
+    def get_data_from_metric(
+        self,
+        param, 
+        spec,
+        process_func,
+    ):
+        self.log.debug('grabbing metric {} = {}'.format(param, spec))
+        try:
+            elts = self.get_elements_with_param_matching_spec(param, spec)
+            self.log.debug("grabbed {}".format(len(elts)))
+            if len(elts) > 0:
+                # return process_func(elts[0])
+                self.log.debug('attempting to process and return elts')
+                return process_func(elts)
+            else:
+                raise selenium.common.exceptions.NoSuchElementException
+        except:
+            self.log.debug('finding/processing metric failed, returning None')
+            return None
+
+    ### LINK HANDLING
+
+    def open_link(
+        self,
+        link
+    ):
+        self.log.debug('opening link {}'.format(link))
+        self.driver.get(link)
+        self.current_link = link
 
     def open_link_with_timeout(
         self,
@@ -73,129 +169,62 @@ class internet_util(_base_util):
         
         return 0
 
+    ### ELEMENT GRABBING ETC. 
 
-class course_guide_util():
-    '''
-    umich course guide utility
-    '''
-
-    letter_to_gpa_plot = {
-        'A+': 4.3, #for display purposes..
-        'A': 4.0,
-        'A-': 3.7,
-        'B+': 3.3,
-        'B': 3.0,
-        'B-': 2.7,
-        'C+': 2.3,
-        'C': 2.0,
-        'C-': 1.7,
-        'D+': 1.3,
-        'D': 1.0,
-        'D-': 0.7,
-        'E': 0.0,
-        }
-    letter_to_gpa_raw = dict(letter_to_gpa_plot)
-    letter_to_gpa_raw['A+'] = 4.0
-
-    def __init__(
+    def get_elements_with_param_matching_spec(
         self,
-        search_results_link,
-        driver_path=None,
-    ):  
-
-        self.default_search_link = search_results_link
-        self._internet_util = internet_util(
-            driver_path,
-            options=['--start-maximized' if platform_system() == 'Windows' else '--kiosk']            
-            )
-        self.searches = {}
-        self.class_data = {}
-
-    def _get_class_list_from_elements(
-        self,
-        elements,
+        param,
+        spec
     ):
-        return map(lambda elt: ' '.join(elt.text.split()[0:2]), elements)
-
-    def _get_full_class_list(
-        self,
-    ):
-        class_list = []
-        has_next = True
-
-        while has_next:
-            try: 
-                next_button = self._internet_util.get_element_with_param_matching_spec('@id', 'contentMain_hlnkNextTop')
-            except selenium.common.exceptions.NoSuchElementException:
-                next_button = None
-                has_next = False
-
-            class_list += self._get_class_list_from_elements(
-                self._internet_util.get_elements_with_param_matching_spec('@href', 'content=')
-            )
-
-            if has_next:
-                next_button.click()
+        att_str = 'find_elements_by_{}'.format(param)
+        if hasattr(self.driver, att_str):
+            return getattr(self.driver, 'find_elements_by_{}'.format(param))(spec)
+        return self.driver.find_elements_by_xpath("//a[contains(@{}, '{}')]".format(param, spec))
         
-        return class_list
-
-    def grab_classes_from_search_url(
+    def get_element_with_param_matching_spec(
         self,
-        search_url=None,
+        param,
+        spec
     ):
-        # open the mf course guide
-        search_url = self.default_search_link if search_url is None else search_url
-        
-        print('opening ')
-        if search_url not in self._internet_util.driver.current_url:
-            self._internet_util.open_link(search_url)
+        if hasattr(self.driver, 'find_element_by_{}'.format(param)):
+            return getattr(self.driver, 'find_element_by_{}'.format(param))(spec)
+        return self.driver.find_element_by_xpath("//a[contains({}, '{}')]".format(param, spec))
 
-        if 'show=' in search_url:
-            search_url.replace(search_url[search_url.find('show='):].split('&')[0], 'show={}'.format(max_results))
+    ### COOKIES
 
-        # add classes that resulted from search, if needed
-        if search_url not in self.searches:
-            self.searches[search_url] = {}
-            self.searches[search_url] = self._get_full_class_list()
-
-        return self.searches[search_url]
-
-
-    def _get_class_stats(
+    def write_cookies(
         self,
-        search_url=None,
-        art_url='https://art.ai.umich.edu/course/EECS%20281/', # needs to be a restricted URL, to force user to login ;->
-        max_timeout=120.,
-        max_results=10000,
+        cookiename='',
+        cookiepath=None,
     ):
+        if cookiepath is None:
+            cookiepath = self.DATA_PATH
+        dump_json(self.driver.get_cookies(), '{}.cookiemonster'.format(cookiename), cookiepath)
+        self.log.debug('wrote cookies!')
 
-        classnames_to_search = self.grab_classes_from_search_url(
-            search_url
-        )
-        
-        classnames_to_scrape = [classname for classname in classnames_to_search if classname not in self.class_data]
-
-        if len(classnames_to_scrape > 0):
-            self._internet_util.open_link_with_timeout(
-                art_url, 
-                max_timeout
-            )
-
-        for classname in classnames_to_scrape:
-            next_element = self._internet_util.driver.find_element_by_id('nav_search')
-            next_element.click()
-            next_element.send_keys(classname + '\n')
-            self.class_data[classname] = self._get_barchart_data_from_open_page()
-
-        return {classname: self.class_data[classname] for classname in self.searches[search_url]}
-
-
-    def _get_barchart_data_from_open_page(
-        self
+    def load_cookies(
+        self,
+        cookiename='',
+        cookiepath=None,
     ):
-        txt_data = self._internet_util.driver.find_element_by_id('barchart').text.split('\n')
-        *data, = map(lambda x: 0. if x[0] == '<' else float(x.strip('%')), txt_data[txt_data.index('E') + 1:-1])
-        data = np.asarray(data) / 100.
-        data[data == 0.] = (1. - sum(data))/len(data[data == 0.])
+        if cookiepath is None:
+            cookiepath = self.DATA_PATH
+        return grab_json('{}.cookiemonster'.format(cookiename), cookiepath)
 
-        return data
+    def clear_cookies(
+        self,
+        cookiename='',
+        cookiepath=None,
+    ):
+        if cookiepath is None:
+            cookiepath = self.DATA_PATH
+        os.remove('{}/{}.cookiemonster'.format(cookiepath, cookiename))
+        self.log.debug('cleared cookie \'{}/{}.cookiemonster\''.format(cookiepath, cookiename))
+
+    def add_cookies(
+        self,
+        cookiename='',
+        cookiepath=None,
+    ):
+        for cookie in self.load_cookies(cookiename, cookiepath):
+            self.driver.add_cookie(cookie)

@@ -1,4 +1,5 @@
-from lucs_tools.util.command_line import *
+import argparse
+import sys
 
 class ez_parser:
     def __init__(self, description="default parser", default_args = [("samples", int, "s", 10000), ("benchmark", str, "b", "sm")]):

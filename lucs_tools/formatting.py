@@ -1,4 +1,5 @@
-class Header:
+
+class header:
     styles = ['l', 'c']
     def __init__(self, width, char, colwidth=1):
         self.output = ''
@@ -30,7 +31,7 @@ class Header:
     def fmt(s, char='%', colwidth=2, factor=2, side='l'):
         slist = s.split('\n')
         len_max = max(*map(len, slist))
-        h = Header(len_max + 2*colwidth*factor, char, colwidth)
+        h = header(len_max + 2*colwidth*factor, char, colwidth)
         h()
         for i,line in enumerate(slist):
             if len(line) == 0:

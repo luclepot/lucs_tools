@@ -16,7 +16,8 @@ REQUIRES_PYTHON = '>=3.6.7'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    "argparse",
+    'argparse',
+    'selenium',
 ]
 
 package_data={'': []}
