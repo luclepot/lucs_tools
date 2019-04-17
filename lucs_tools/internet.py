@@ -13,7 +13,7 @@ class exceptions:
     class MultipleMatchingWebDrivers(Exception):
         code = 2
 
-def select_default(
+def select_default_webdriver(
     search_criteria,
     search_path,
     ignore_duplicates=False
@@ -51,12 +51,62 @@ def dump_json(
     with open(datafile_path, 'w+') as f:
         json.dump(data, f)
 
-class internet_base_util:
-
+class offline_internet_base_util:
+    """
+    seperate utility class comtaining the offline component of the internet base utility class
+    useful for giving offline functionality to internet-related scraping utilities. 
+    """
+    
     SUBMODULE_NAME = __file__.replace('.py', '').split('/')[-1].split('\\')[-1]
     SUBMODULE_DATA_PATH = '{}/data/{}'.format(os.path.dirname(os.path.abspath(__file__)), SUBMODULE_NAME)
     PLATFORM = platform_system().lower()
 
+    def __init__(
+        self,
+        data_path=None,
+        loglevel=20,
+    ):
+
+        self.DATA_PATH = self.SUBMODULE_DATA_PATH if data_path is None else data_path
+
+        self.metrics = {}
+        self.known_cookies = {}
+
+        self.log = get_logger(__name__)
+        set_loglevel(loglevel, __name__) 
+
+    def add_metric(
+        self,
+        param, 
+        spec,
+        name,
+        function,
+    ):
+        self.metrics[name] = tuple((param, spec, name, function))
+
+    def load_cookies(
+        self,
+        cookiename='',
+        cookiepath=None,
+    ):
+        if cookiepath is None:
+            cookiepath = self.DATA_PATH
+        return grab_json('{}.cookiemonster'.format(cookiename), cookiepath)
+
+    def clear_cookies(
+        self,
+        cookiename='',
+        cookiepath=None,
+    ):
+        if cookiepath is None:
+            cookiepath = self.DATA_PATH
+        os.remove('{}/{}.cookiemonster'.format(cookiepath, cookiename))
+        self.log.debug('cleared cookie \'{}/{}.cookiemonster\''.format(cookiepath, cookiename))
+
+class internet_base_util(offline_internet_base_util):
+    """
+    fully online internet related base utility!!
+    """
     def __init__(
         self,
         driver_path=None,
@@ -64,6 +114,11 @@ class internet_base_util:
         options=None,
         loglevel=20,
     ):
+        super().__init__(
+            data_path,
+            loglevel,
+        )
+
         self.driver_path = self.check_and_get_driver_path(driver_path)
         if options is not None:
             chrome_options = selenium.webdriver.ChromeOptions()
@@ -78,14 +133,6 @@ class internet_base_util:
                 executable_path=self.driver_path
             )
 
-        self.DATA_PATH = self.SUBMODULE_DATA_PATH if data_path is None else data_path
-
-        self.metrics = {}
-        self.known_cookies = {}
-
-        self.log = get_logger(__name__)
-        set_loglevel(loglevel, __name__) 
-
     ### DRIVER HANDLING
 
     def check_and_get_driver_path(
@@ -93,22 +140,13 @@ class internet_base_util:
         driver_path
     ):
         if driver_path is None or not os.path.exists(driver_path):
-            driver_path = select_default(
+            driver_path = select_default_webdriver(
                 '*{}*'.format(self.PLATFORM),
                 '{}/default_webdrivers'.format(self.SUBMODULE_DATA_PATH)
             )
         return driver_path
 
     ### METRICS
-    
-    def add_metric(
-        self,
-        param, 
-        spec,
-        name,
-        function,
-    ):
-        self.metrics[name] = tuple((param, spec, name, function))
 
     def get_data_from_named_metric(
         self,
@@ -202,25 +240,6 @@ class internet_base_util:
         dump_json(self.driver.get_cookies(), '{}.cookiemonster'.format(cookiename), cookiepath)
         self.log.debug('wrote cookies!')
 
-    def load_cookies(
-        self,
-        cookiename='',
-        cookiepath=None,
-    ):
-        if cookiepath is None:
-            cookiepath = self.DATA_PATH
-        return grab_json('{}.cookiemonster'.format(cookiename), cookiepath)
-
-    def clear_cookies(
-        self,
-        cookiename='',
-        cookiepath=None,
-    ):
-        if cookiepath is None:
-            cookiepath = self.DATA_PATH
-        os.remove('{}/{}.cookiemonster'.format(cookiepath, cookiename))
-        self.log.debug('cleared cookie \'{}/{}.cookiemonster\''.format(cookiepath, cookiename))
-
     def add_cookies(
         self,
         cookiename='',
@@ -228,3 +247,38 @@ class internet_base_util:
     ):
         for cookie in self.load_cookies(cookiename, cookiepath):
             self.driver.add_cookie(cookie)
+
+def autodiff(internet_base_util):
+
+    def diff(
+        self,
+        f1,
+        f2,
+    ):
+        assert(all(map(os.path.exists, [f1, f2])))
+        try:
+            if 'diffchecker.com' not in self.driver.current_url:
+                self.open_link('https://www.diffchecker.com/')
+            inputs = self.get_elements_with_param_matching_spec('class_name', 'diff-input-text')
+            texts = open(f1).read(), open(f2).read()
+            
+            for finput, ftext in zip(inputs, texts):
+                finput.click()
+                finput = self.driver.switch_to_active_element()
+                finput.clear()
+                finput.send_keys(ftext)
+            self.get_element_with_param_matching_spec('class_name', 'jsx-1908705389').click()
+
+        except Exception as e:
+            for elt in str(e).split('\n'):
+                self.log.error(elt)
+            self.log.error('an error was caught. aborting diff')
+
+    def diff_multiple(
+        self,
+        f1_list,
+        f2_list,
+    ):
+        assert(all(map(lambda x: isinstance(x, list), [f1_list, f2_list])))
+        for f1, f2 in zip(f1_list, f2_list):
+            self.diff(f1, f2)
