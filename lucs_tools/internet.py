@@ -248,7 +248,7 @@ class internet_base_util(offline_internet_base_util):
         for cookie in self.load_cookies(cookiename, cookiepath):
             self.driver.add_cookie(cookie)
 
-def autodiff(internet_base_util):
+class autodiff(internet_base_util):
 
     def diff(
         self,
