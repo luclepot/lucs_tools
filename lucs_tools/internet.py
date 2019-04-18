@@ -249,6 +249,8 @@ class internet_base_util(offline_internet_base_util):
             self.driver.add_cookie(cookie)
 
 class autodiff(internet_base_util):
+    
+    def __init__(self,): raise NotImplementedError
 
     def diff(
         self,
