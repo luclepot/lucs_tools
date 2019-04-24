@@ -141,11 +141,19 @@ class joyful:
         lines,
         points=60,
         linewidth=1.,
-        size=(625, 593)
+        size=(625, 593),
+        shitty_mode=False,
     ):
         x, ys = joyful.joy_points(lines, points, size)
-        for y in ys:
-            plt.plot(x,y, c='white', linewidth=linewidth)
+        max_y = np.zeros(x.shape)
+        for y in np.flip(ys, axis=0):
+            max_y = np.max([y, max_y], axis=0)
+            if shitty_mode:
+                plot_y = None
+            else:
+                plot_y = max_y
+            plt.plot(x, plot_y, c='white', linewidth=linewidth)
+            
         ax = plt.gca()
         ax.set_aspect(float(size[0])/float(size[1]))
         ax.set_facecolor('black')
@@ -154,22 +162,34 @@ class joyful:
         plt.show()
 
     @staticmethod
-    def letter_plot(
+    def joy_text(
         text,
         points,
         fontsize=6,
         weight='light',
         size=(625, 593),
-        subaspect=1.4
+        subaspect=1.4,
+        factor=1.,
+        replace=False, 
     ):
         # formatted = _textwrap_converge(data, lines)
-        formatted = textwrap.wrap(text.replace(' ', ''), points)
+        if replace:
+            text = text.replace(' ', '')
+        formatted = textwrap.wrap(text, points)
         lines = len(formatted)
         points = max(map(len, formatted))
         x, ys = joyful.joy_points(lines, points, size)
+        formatted = np.flip(formatted, axis=0)
+        ys = np.flip(ys, axis=0)
+        max_y = np.zeros(x.shape)   
+
         for i in range(lines):
             for j in range(len(formatted[i])):
-                plt.text(x[j], ys[i,j], formatted[i][j], fontsize=fontsize, weight=weight, color='white', verticalalignment='top', horizontalalignment='left')
+                if ys[i,j] > max_y[j] + factor:
+                    plt.text(x[j], ys[i,j], formatted[i][j], fontsize=fontsize, weight=weight, color='white', verticalalignment='top', horizontalalignment='left')
+            max_y = np.max([ys[i], max_y], axis=0)
+            plt.plot(x, max_y, c='white', linewidth=0.5)
+
         plt.plot(x, np.min(ys, axis=0), 'black')
         #plt.plot(x[0], ys[0,-1])
         plt.plot(x, np.max(ys, axis=0), 'black')
