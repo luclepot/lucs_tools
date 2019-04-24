@@ -248,37 +248,57 @@ class internet_base_util(offline_internet_base_util):
         for cookie in self.load_cookies(cookiename, cookiepath):
             self.driver.add_cookie(cookie)
 
-class autodiff(internet_base_util):
+class autodiff:
+    
+    def __init__(
+        self,
+        f1=None,
+        f2=None,
+        driver_path=None,
+        data_path=None,
+        options=None,
+        loglevel=20,
+    ):
+        self._internet_util = internet_base_util(
+            driver_path=driver_path, 
+            data_path=os.getcwd(),
+            options=options,
+            loglevel=20
+        )
 
-    def diff(
+        f1, f2 = map(lambda x: [x] if (isinstance(x, str)) else x, [f1, f2])
+        if not (None in f1 or None in f2):
+            self._diffs(f1, f2)
+
+    def _diff(
         self,
         f1,
         f2,
     ):
         assert(all(map(os.path.exists, [f1, f2])))
         try:
-            if 'diffchecker.com' not in self.driver.current_url:
-                self.open_link('https://www.diffchecker.com/')
-            inputs = self.get_elements_with_param_matching_spec('class_name', 'diff-input-text')
+            self._internet_util.open_link('https://www.quickdiff.com/')
+            inputids = ['een', 'twee']
             texts = open(f1).read(), open(f2).read()
+
+            for inputid, text in zip(inputids, texts):                
+                self._internet_util.driver.execute_script("document.getElementById('{}').value = '{}'".format(inputid, text.replace('\n', '\\r\\n').replace("'", "\\'")))
             
-            for finput, ftext in zip(inputs, texts):
-                finput.click()
-                finput = self.driver.switch_to_active_element()
-                finput.clear()
-                finput.send_keys(ftext)
-            self.get_element_with_param_matching_spec('class_name', 'jsx-1908705389').click()
+            self._internet_util.get_element_with_param_matching_spec('class_name', 'awesome').click()
 
         except Exception as e:
             for elt in str(e).split('\n'):
-                self.log.error(elt)
-            self.log.error('an error was caught. aborting diff')
+                self._internet_util.log.error(elt)
+            self._internet_util.log.error('an error was caught. aborting diff')
 
-    def diff_multiple(
+    def _diffs(
         self,
         f1_list,
         f2_list,
     ):
         assert(all(map(lambda x: isinstance(x, list), [f1_list, f2_list])))
-        for f1, f2 in zip(f1_list, f2_list):
-            self.diff(f1, f2)
+        for i, (f1, f2) in enumerate(zip(f1_list, f2_list)):
+            if 'quickdiff.com' in self._internet_util.driver.current_url:
+                self._internet_util.driver.execute_script("window.open('');")
+                self._internet_util.driver.switch_to_window(self._internet_util.driver.window_handles[i])
+            self._diff(f1, f2)

@@ -1,2 +1,2 @@
 # lucs_tools
-utility classes, rewritten just too many times
+utility classes, functions, and modules, rewritten just *one* too many times
