@@ -96,3 +96,40 @@ class header:
                 h(line, side='l')
 
         return str(h)
+
+class pretty_map(dict):
+    def __str__(
+        self,
+    ):
+        return map_stringrep(self)
+
+    def __repr__(
+        self,
+    ):
+        return map_stringrep(self)
+
+    def depth(
+        self,
+    ):
+        return map_depth(self)
+
+def map_stringrep(
+    d,
+    depth=0,
+    bullet='-',
+):
+    indent = '  '*depth + bullet + ' '
+    if depth == 0:
+        indent = ''
+    if isinstance(d, dict):
+        return ''.join([indent + (str(key).upper() if depth==0 else str(key)) +  '\n' + map_stringrep(d[key], depth + 1) for key in d])
+    if not isinstance(d, str) and hasattr(d, '__iter__'):
+        return ''.join([str(map_stringrep(delt, depth)) for delt in d])
+    return indent + str(d) + '\n'
+
+def map_depth(
+    d
+):
+    if isinstance(d, dict):
+        return 1 + (max(map(map_depth, d.values())) if d else 0)
+    return 0
