@@ -1,3 +1,56 @@
+import textwrap 
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from operator import truediv, mul
+
+class ascii_canvas(np.ndarray):
+    def __new__(
+        subtype,
+        shape,
+        canvas_fill=' ',
+        buffer=None,
+        offset=0,
+        strides=None,
+        order=None,
+        info=None
+    ):  
+        obj = super(ascii_canvas, subtype).__new__(
+            subtype,
+            shape,
+            '<U1',
+            buffer,
+            offset,
+            strides,
+            order
+        )
+
+        if len(canvas_fill) == 0:
+            canvas_fill = ' '
+
+        obj.fill(canvas_fill)
+
+        assert(len(shape) == 2)
+
+        obj.width,obj.height = shape
+
+        return obj
+    
+    def __str__(
+        self,
+    ):
+        s = '-'*(self.width + 4) + '\n'
+        for row in self[:].T:
+            s += ': {} :\n'.format(''.join(row))
+        return s + '-'*(self.width + 4) + '\n'
+    
+    def raw(
+        self,
+    ):
+        s = ''
+        for row in self[:].T:
+            s += ''.join(row) + '\n'
+        return s
 
 class header:
     styles = ['l', 'c']
@@ -43,3 +96,40 @@ class header:
                 h(line, side='l')
 
         return str(h)
+
+class pretty_map(dict):
+    def __str__(
+        self,
+    ):
+        return map_stringrep(self)
+
+    def __repr__(
+        self,
+    ):
+        return map_stringrep(self)
+
+    def depth(
+        self,
+    ):
+        return map_depth(self)
+
+def map_stringrep(
+    d,
+    depth=0,
+    bullet='-',
+):
+    indent = '  '*depth + bullet + ' '
+    if depth == 0:
+        indent = ''
+    if isinstance(d, dict):
+        return ''.join([indent + (str(key).upper() if depth==0 else str(key)) +  '\n' + map_stringrep(d[key], depth + 1) for key in d])
+    if not isinstance(d, str) and hasattr(d, '__iter__'):
+        return ''.join([str(map_stringrep(delt, depth)) for delt in d])
+    return indent + str(d) + '\n'
+
+def map_depth(
+    d
+):
+    if isinstance(d, dict):
+        return 1 + (max(map(map_depth, d.values())) if d else 0)
+    return 0
