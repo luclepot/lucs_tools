@@ -25,6 +25,7 @@ class ascii_canvas(np.ndarray):
             order
         )
 
+
         if len(canvas_fill) == 0:
             canvas_fill = ' '
 
