@@ -6,6 +6,7 @@ from time import time as time_time
 import json 
 import logging
 from lucs_tools.logs import get_logger, set_loglevel
+from selenium.webdriver.common.by import By
 
 class exceptions:
     class NoMatchingWebDriver(Exception):
@@ -121,11 +122,8 @@ class internet_base_util(offline_internet_base_util):
 
         self.driver_path = self.check_and_get_driver_path(driver_path)
         if options is not None:
-            chrome_options = selenium.webdriver.ChromeOptions()
-            for argument in options:
-                chrome_options.add_argument(argument)
             self.driver = selenium.webdriver.Chrome(
-                chrome_options=chrome_options,
+                options=options,
                 executable_path=self.driver_path
             )
         else:
@@ -212,21 +210,25 @@ class internet_base_util(offline_internet_base_util):
     def get_elements_with_param_matching_spec(
         self,
         param,
-        spec
+        spec,
+        xspec=None,
     ):
-        att_str = 'find_elements_by_{}'.format(param)
-        if hasattr(self.driver, att_str):
-            return getattr(self.driver, 'find_elements_by_{}'.format(param))(spec)
-        return self.driver.find_elements_by_xpath("//a[contains(@{}, '{}')]".format(param, spec))
+        # att_str = 'find_elements_by_{}'.format(param)
+        # if hasattr(self.driver, att_str):
+        #     return getattr(self.driver, 'find_elements_by_{}'.format(param))(spec)
+        if param == 'xpath':
+            return self.driver.find_elements(param, "//a[contains(@{}, '{}')]".format(spec, xspec))
+        return self.driver.find_elements(param, spec)
         
     def get_element_with_param_matching_spec(
         self,
         param,
-        spec
+        spec,
+        xspec=None,
     ):
-        if hasattr(self.driver, 'find_element_by_{}'.format(param)):
-            return getattr(self.driver, 'find_element_by_{}'.format(param))(spec)
-        return self.driver.find_element_by_xpath("//a[contains({}, '{}')]".format(param, spec))
+        if param == 'xpath':
+            return self.driver.find_element(param, "//a[contains(@{}, '{}')]".format(spec, xspec))
+        return self.driver.find_element(param, spec)
 
     ### COOKIES
 
